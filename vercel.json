@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/**/*.js": {
+      "memory": 512,
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
