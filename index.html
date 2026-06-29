@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threads Bot — AI Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dante: { bg: '#0a0a0f', card: '#13131a', border: '#1f1f2e', accent: '#6366f1', 'accent-glow': '#818cf8', green: '#10b981', amber: '#f59e0b', red: '#ef4444' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0f; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+        .glow { box-shadow: 0 0 40px rgba(99,102,241,0.15); }
+        .glow-text { text-shadow: 0 0 20px rgba(99,102,241,0.5); }
+        .card { background: #13131a; border: 1px solid #1f1f2e; border-radius: 16px; padding: 24px; transition: all 0.2s; }
+        .card:hover { border-color: #2d2d40; }
+        .btn { padding: 10px 24px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover { background: #5558e6; box-shadow: 0 0 20px rgba(99,102,241,0.3); }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: transparent; border: 1px solid #2d2d40; color: #e2e8f0; }
+        .btn-outline:hover { border-color: #6366f1; color: #818cf8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .log-line { font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #1a1a24; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-ok { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-err { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+        .status-warn { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+    </style>
+</head>
+<body class="p-6 md:p-10">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="flex items-center gap-4 mb-10">
+            <div class="w-12 h-12 bg-dante-accent rounded-xl flex items-center justify-center text-2xl glow">🧵</div>
+            <div>
+                <h1 class="text-3xl font-bold glow-text">Threads AI Bot</h1>
+                <p class="text-gray-500 text-sm mt-1">Automated content engine — Dante style</p>
+            </div>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8" id="statusGrid">
+            <div class="card">
+                <div class="flex items-center gap-3">
+                    <span class="status-dot pulse" id="statusDot"></span>
+                    <span class="text-sm font-medium" id="statusText">Checking...</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="text-2xl font-bold" id="postCount">--</div>
+                <div class="text-gray-500 text-sm">Posts Today</div>
+            </div>
+            <div class="card">
+                <div class="text-2xl font-bold" id="lastPostTime">--</div>
+                <div class="text-gray-500 text-sm">Last Post</div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card mb-6">
+            <h2 class="text-lg font-semibold mb-4">⚡ Quick Actions</h2>
+            <div class="flex flex-wrap gap-3">
+                <button class="btn btn-primary" onclick="triggerPost(false)" id="btnPost">🚀 Generate & Post</button>
+                <button class="btn btn-outline" onclick="triggerPost(true)" id="btnDry">🔍 Dry Run</button>
+                <button class="btn btn-outline" onclick="checkDebug()" id="btnDebug">🩺 Debug Env</button>
+                <a href="/api/auth" class="btn btn-outline inline-block">🔐 Connect Threads</a>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="card">
+            <h2 class="text-lg font-semibold mb-4">📋 Activity Log</h2>
+            <div id="logs" class="max-h-96 overflow-y-auto">
+                <div class="log-line text-gray-500">Waiting for activity...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '';
+        
+        function addLog(msg, type = 'info') {
+            const el = document.getElementById('logs');
+            const colors = { info: 'text-gray-400', success: 'text-green-400', error: 'text-red-400', warn: 'text-amber-400' };
+            const line = document.createElement('div');
+            line.className = 'log-line ' + (colors[type] || 'text-gray-400');
+            line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+            el.prepend(line);
+            if (el.children.length > 50) el.lastChild.remove();
+            if (el.children[0]?.textContent === 'Waiting for activity...') el.innerHTML = '';
+        }
+
+        async function checkDebug() {
+            addLog('🔍 Checking environment...', 'info');
+            const btn = document.getElementById('btnDebug');
+            btn.disabled = true;
+            btn.textContent = 'Checking...';
+            try {
+                const r = await fetch(API + '/api/debug');
+                const data = await r.json();
+                const status = data.env.hasApiKey && data.env.hasToken;
+                document.getElementById('statusDot').className = status ? 'status-dot status-ok' : 'status-dot pulse status-warn';
+                document.getElementById('statusText').textContent = status ? 'All Systems Go' : 'Missing Config';
+                addLog('Env check: ' + JSON.stringify(data.env), status ? 'success' : 'warn');
+            } catch(e) {
+                addLog('Debug failed: ' + e.message, 'error');
+            }
+            btn.disabled = false;
+            btn.textContent = '🩺 Debug Env';
+        }
+
+        async function triggerPost(dryRun) {
+            const btnDry = document.getElementById('btnDry');
+            const btnPost = document.getElementById('btnPost');
+            const label = dryRun ? '🔍 Dry running...' : '🚀 Posting...';
+            
+            [btnDry, btnPost].forEach(b => b.disabled = true);
+            btnDry.textContent = dryRun ? label : btnDry.textContent;
+            btnPost.textContent = dryRun ? btnPost.textContent : label;
+            
+            addLog(dryRun ? '🔍 Starting dry run...' : '🚀 Generating & posting...', 'info');
+            
+            try {
+                const r = await fetch(API + '/api/manual' + (dryRun ? '?dry=true' : ''), { method: 'POST' });
+                const data = await r.json();
+                
+                if (data.status === 'success') {
+                    addLog('✅ ' + (dryRun ? 'DRY RUN' : 'POSTED!') + ' — ' + (data.text || '').slice(0, 100) + '...', 'success');
+                    document.getElementById('lastPostTime').textContent = new Date().toLocaleTimeString();
+                    document.getElementById('statusDot').className = 'status-dot status-ok';
+                    document.getElementById('statusText').textContent = 'Operational';
+                } else {
+                    addLog('❌ Failed: ' + (data.error || 'Unknown'), 'error');
+                }
+            } catch(e) {
+                addLog('❌ Error: ' + e.message, 'error');
+            }
+            
+            [btnDry, btnPost].forEach(b => {
+                b.disabled = false;
+                b.textContent = b.id === 'btnDry' ? '🔍 Dry Run' : '🚀 Generate & Post';
+            });
+        }
+
+        // Init
+        checkDebug();
+    </script>
+</body>
+</html>
